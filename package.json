@@ -1,0 +1,24 @@
+{
+  "name": "discussion-theme-remind-group",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "node build.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@google/clasp": "^3.0.6-alpha",
+    "@types/google-apps-script": "^2.0.1",
+    "@types/jest": "^30.0.0",
+    "clasp": "^1.0.0",
+    "esbuild": "^0.25.9",
+    "esbuild-gas-plugin": "^0.10.0",
+    "jest": "^30.1.3",
+    "ts-jest": "^29.4.1",
+    "typescript": "^5.9.2"
+  }
+}
