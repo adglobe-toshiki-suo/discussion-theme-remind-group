@@ -1,8 +1,8 @@
 {
   "inlude": ["src/**/*"],
   "compilerOptions": {
-    "target": "ES2015",
-    "module": "commonjs",
+    "target": "esnext",
+    "module": "esnext",
     "allowJs": false,
     "outDir": "./dist",
     "strict": true /* Enable all strict type-checking options. */,
