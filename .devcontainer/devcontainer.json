@@ -14,11 +14,7 @@
         "editor.insertSpaces": true,
         "editor.useTabStops": false,
         "editor.defaultFormatter": "esbenp.prettier-vscode",
-        "editor.formatOnSave": true,
-        "[yaml][github-actions-workflow]": {
-          "editor.tabSize": 2,
-          "editor.insertSpaces": true
-        }
+        "editor.formatOnSave": true
       }
     }
   },
