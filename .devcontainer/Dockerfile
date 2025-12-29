@@ -1,3 +1,3 @@
-FROM node:20-bullseye
+FROM node:lts-bullseye
 
 WORKDIR /workspace
