@@ -1,8 +1,12 @@
-import { NEXT_WEEK } from "./config/constants";
 import { createMessageBody } from "./message";
 import { getSheetData } from "./sheets";
 import { sendToSlack } from "./send";
 import { sectionList } from "./config/section";
+import dayjs, { type Dayjs } from "dayjs";
+import "dayjs/locale/ja";
+
+dayjs.locale("ja");
+
 export function main() {
   const scriptProperties: GoogleAppsScript.Properties.Properties =
     PropertiesService.getScriptProperties();
@@ -21,24 +25,14 @@ export function main() {
   }
 
   // Gas実行日を取得
-  const today: Date = new Date();
-  today.setHours(0, 0, 0, 0);
+  const today: Dayjs = dayjs();
 
   // 1週間後に座談会があるか判定するため、1週間後の日付を保持
-  const nextWeek: Date = new Date();
-  nextWeek.setDate(today.getDate() + NEXT_WEEK);
-  const targetDate = Utilities.formatDate(
-    new Date(nextWeek),
-    Session.getScriptTimeZone(),
-    "yyyy/MM/dd"
-  );
+  const nextWeek: Dayjs = today.add(7, "day");
+  const targetDate: string = nextWeek.format("YYYY/MM/DD");
 
   // リマインド本文に使用するため成型
-  const eventDate: string = Utilities.formatDate(
-    nextWeek,
-    "Asia/Tokyo",
-    "MM/dd"
-  );
+  const eventDate: string = nextWeek.format("MM/DD");
 
   // セクションごとに座談会がGAS実行日の1週間後に予定されているかを判定し、予定されている場合は各セクションチャンネルにリマインドを送る
   for (const section of Object.values(sectionList)) {
