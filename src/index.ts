@@ -1,9 +1,10 @@
 import { createMessageBody } from "./message";
 import { getSheetData } from "./sheets";
 import { sendToSlack } from "./send";
-import { sectionList } from "./config/section";
+import { sectionList } from "./config/constants";
 import dayjs, { type Dayjs } from "dayjs";
 import "dayjs/locale/ja";
+import { Member, TeamMembers } from "./types/spreadSheet";
 
 dayjs.locale("ja");
 
@@ -11,15 +12,11 @@ export function main() {
   const scriptProperties: GoogleAppsScript.Properties.Properties =
     PropertiesService.getScriptProperties();
 
-  // const spreadSheetID: string | null = scriptProperties.getProperty(
-  //   "GOOGLE_SPREADSHEET_ID"
-  // );
-
   const slackOAuthToken = scriptProperties.getProperty("SLACK_OAUTH_TOKEN");
 
   if (!slackOAuthToken) {
     Logger.log(
-      "Error: SLACK_OAUTH_TOKEN Property is not set in script Property."
+      "Error: SLACK_OAUTH_TOKEN Property is not set in script Property.",
     );
     return;
   }
@@ -28,11 +25,7 @@ export function main() {
   const today: Dayjs = dayjs();
 
   // 1週間後に座談会があるか判定するため、1週間後の日付を保持
-  const nextWeek: Dayjs = today.add(7, "day");
-  const targetDate: string = nextWeek.format("YYYY/MM/DD");
-
-  // リマインド本文に使用するため成型
-  const eventDate: string = nextWeek.format("MM/DD");
+  const nextWeek: Dayjs = today.add(0, "day");
 
   // セクションごとに座談会がGAS実行日の1週間後に予定されているかを判定し、予定されている場合は各セクションチャンネルにリマインドを送る
   for (const section of Object.values(sectionList)) {
@@ -48,29 +41,51 @@ export function main() {
     // プロパティから値を取得できない場合、当該セクションはスキップ
     if (!webhookUrl || !channelName) {
       Logger.log(
-        `Error: Error: Property is not set in script Property. webhookUrl: ${webhookUrl}, channelName: ${channelName}`
+        `Error: Error: Property is not set in script Property. webhookUrl: ${webhookUrl}, channelName: ${channelName}`,
       );
       continue;
     }
 
     // スプレッドシートからスケジュール情報とメンバー情報を取得
-    const discussionMembers = getSheetData(
-      targetDate,
+    const scheduleInfo = getSheetData(
+      nextWeek,
       scheduleSheetName,
-      memberSheetName
+      memberSheetName,
     );
 
     // スプレッドシートから情報が取得できない場合、当該セクションはスキップ
-    if (!discussionMembers) {
-      Logger.log(`No schedule found on ${targetDate}.`);
+    if (!scheduleInfo) {
+      Logger.log(
+        `No schedule found on ${nextWeek.format("MM/DD")} for ${
+          section.sectionName
+        }.`,
+      );
       continue;
     }
 
-    // リマインド本文を作成
-    const messageBody = createMessageBody(discussionMembers, eventDate);
+    const discussionMembers: Required<Member>[] = scheduleInfo.filter(
+      (member) => member.participation && member.team !== null,
+    );
 
-    // Slackへリマインドを通知
-    sendToSlack(webhookUrl, slackOAuthToken, channelName, messageBody);
+    const teamMembers: TeamMembers = Object.groupBy(
+      discussionMembers,
+      (member) => {
+        if (!member.team) {
+          throw new Error("Unexpected team value");
+        }
+        return member.team;
+      },
+    );
+
+    for (const [team, members] of Object.entries(teamMembers)) {
+      if (!members || members.length === 0) continue;
+
+      // リマインド本文を作成
+      const messageBody = createMessageBody(members, team, nextWeek);
+
+      // Slackへリマインドを通知
+      sendToSlack(webhookUrl, slackOAuthToken, channelName, messageBody);
+    }
   }
 }
 

@@ -1,36 +1,26 @@
-import { Member, TeamMembersMap } from "./config/types";
+import { Member } from "./types/spreadSheet";
+import { Dayjs } from "dayjs";
 
 /**
  * slackへ送るリマインド文を作成します。
- * @param {} discussionMembers - 座談会メンバー情報
- * @param {string} eventDate - 座談会実施日
- * @returns {string} messageBody -
+ * @param {Member[]} discussionMembers - 座談会メンバー情報
+ * @param {string} team  - チームごとのメンバー情報
+ * @param {Dayjs} eventDate - 座談会実施日
+ * @returns {string} messageBody - リマインド本文
  */
 export const createMessageBody = (
   discussionMembers: Member[],
-  eventDate: string
+  team: string,
+  eventDate: Dayjs,
 ): string => {
-  let mention = "";
-  let teamMembersMap: TeamMembersMap = {};
-  for (const discussionMember of discussionMembers) {
-    if (!discussionMember.participation) continue;
-    if (discussionMember.isFacili) {
-      mention += `<@${discussionMember.memberID}>`;
-    }
+  const facilitator = discussionMembers.find(
+    (member) => member.isFacilitator === true,
+  );
 
-    const team = discussionMember.team;
-    if (team) {
-      if (!teamMembersMap[team]) {
-        teamMembersMap[team] = "";
-      }
-      teamMembersMap[team] += ` ・${discussionMember.name}\n`;
-    }
-  }
+  const memberBody = `\n【${team}チーム】\n${discussionMembers.map((member) => ` ・${member.name}\n`).join("")}`;
 
-  const memberBody = Object.entries(teamMembersMap)
-    .map(([team, members]) => `\n【${team}チーム】\n${members}`)
-    .join("");
-
-  const messageBody = `${mention}\nお疲れ様です。\n次回座談会のファシリテーターの方へリマインドです！\n\n来週${eventDate}に座談会が予定されています🙌\nお題の共有がまだであれば、共有よろしくお願いいたします🙇\n\n座談会メンバー構成は下記をご確認ください。\n  ${memberBody}\n\t`;
+  const messageBody = `@${facilitator?.memberID ?? ""}\nお疲れ様です。\n次回座談会のファシリテーターの方へリマインドです！\n\n来週${eventDate.format(
+    "MM/DD",
+  )}に座談会が予定されています🙌\nお題の共有がまだであれば、共有よろしくお願いいたします🙇\n\n座談会メンバー構成は下記をご確認ください。\n  ${memberBody}\n\t`;
   return messageBody;
 };

@@ -1,4 +1,4 @@
-import { SlackPayload } from "./config/types";
+import { SlackPayload } from "./types/slack";
 
 /**
  * Slackにメッセージを送信します。

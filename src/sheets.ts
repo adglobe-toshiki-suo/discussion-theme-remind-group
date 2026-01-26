@@ -1,9 +1,10 @@
+import dayjs, { type Dayjs } from "dayjs";
 import {
   HEADER_ROW_INDEX,
   FIRST_DATA_ROW_INDEX,
-  DATE_COLUMN_KEY,
+  ERROR_MESSAGES,
 } from "./config/constants";
-import { Schedule, Member } from "./config/types";
+import { Member } from "./types/spreadSheet";
 
 /**
  * スプレッドシートから各シートの情報を取得し、座談会スケジュール情報とメンバー情報を返却します。
@@ -11,38 +12,29 @@ import { Schedule, Member } from "./config/types";
  * @param targetDate - GAS実行日の1週間後の日にち(1週間後にリマインドするべき座談会があるかを判定するために使用)
  */
 export const getSheetData = (
-  targetDate: string,
+  targetDate: Dayjs,
   scheduleSheetName: string,
-  memberSheetName: string
-) => {
+  memberSheetName: string,
+): Member[] | null => {
   // スプレッドシートオブジェクトを取得
   const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
 
   if (!spreadsheet) throw new Error(`Spreadsheet not found.`);
 
-  // スケジュールを取得
-  const schedule = getScheduleFromSheet(
-    spreadsheet,
-    targetDate,
-    scheduleSheetName
-  );
-
-  if (!schedule) {
-    Logger.log(`No schedule found on ${targetDate}.`);
-    return;
-  }
-
+  // メンバー情報を取得
   const members = getMemberFromSheet(spreadsheet, memberSheetName);
 
-  for (const member of members) {
-    if (member.name in schedule) {
-      member.team = schedule[member.name];
-      member.isFacili =
-        schedule[member.team + "ファシリ"] === member.name ? true : false;
-    }
-  }
+  // スケジュールからメンバー詳細情報を取得
+  const scheduleInfo = getScheduleFromSheet(
+    spreadsheet,
+    targetDate,
+    scheduleSheetName,
+    members,
+  );
 
-  return members;
+  if (!scheduleInfo) return null;
+
+  return scheduleInfo;
 };
 
 /**
@@ -53,9 +45,10 @@ export const getSheetData = (
  */
 function getScheduleFromSheet(
   spreadsheet: GoogleAppsScript.Spreadsheet.Spreadsheet,
-  targetDate: string,
-  scheduleSheetName: string
-): Schedule | null {
+  targetDate: Dayjs,
+  scheduleSheetName: string,
+  members: Member[],
+): Member[] | null {
   const sheet = spreadsheet.getSheetByName(scheduleSheetName);
 
   if (!sheet) {
@@ -71,9 +64,9 @@ function getScheduleFromSheet(
   }
 
   // 表ヘッダーを取得
-  const header = values[HEADER_ROW_INDEX];
+  const header: string[] = values[HEADER_ROW_INDEX];
   // ヘッダーを除いた2行目以降のデータとして扱う
-  const data = values.slice(FIRST_DATA_ROW_INDEX);
+  const data: (string | Dayjs)[][] = values.slice(FIRST_DATA_ROW_INDEX);
 
   // 表情報が取得できない場合、エラーを出力
   if (data.length === 0) {
@@ -83,28 +76,37 @@ function getScheduleFromSheet(
 
   // 1週間後にある座談会情報を取得
   const matchedRow = data.find((row) => {
-    const rowDate = Utilities.formatDate(
-      new Date(row[0]),
-      Session.getScriptTimeZone(),
-      "yyyy/MM/dd"
-    );
-    return rowDate === targetDate;
+    const rowDate: Dayjs = dayjs(row[0]);
+    return rowDate.isSame(targetDate, "day");
   });
 
   // 座談会情報が取得できない場合、空のオブジェクトを返却
   if (!matchedRow) return null;
 
-  // スプレッドシートで取得した座談会情報配列をオブジェクトに変換
-  const schedule = matchedRow.reduce((accumulator, currentValue, index) => {
-    const key = header[index];
-    // 日付列はスキップ
-    if (key === DATE_COLUMN_KEY) return accumulator;
+  const scheduleInfo = members
+    .filter((member) => member.participation)
+    .map((member) => {
+      const team = matchedRow[header.indexOf(member.name)] as string;
+      const isFacili =
+        matchedRow[header.indexOf(`${team}ファシリ`)] === member.name;
+      return { ...member, team, isFacili };
+    });
 
-    accumulator[key] = currentValue;
-    return accumulator;
-  }, {} as Schedule);
+  const errors = validateScheduleData(scheduleInfo);
+  if (errors.length > 0) {
+    errors.forEach((errorKey) => {
+      Logger.log(
+        `Error: ${
+          ERROR_MESSAGES[errorKey as keyof typeof ERROR_MESSAGES]
+        } in the schedule sheet "${scheduleSheetName}" on ${targetDate.format(
+          "MM/DD",
+        )}`,
+      );
+    });
+    return null;
+  }
 
-  return schedule;
+  return scheduleInfo;
 }
 
 /**
@@ -114,7 +116,7 @@ function getScheduleFromSheet(
  */
 function getMemberFromSheet(
   spreadsheet: GoogleAppsScript.Spreadsheet.Spreadsheet,
-  memberSheetName: string
+  memberSheetName: string,
 ): Member[] {
   const sheet = spreadsheet.getSheetByName(memberSheetName);
 
@@ -130,22 +132,62 @@ function getMemberFromSheet(
     throw new Error(`Invalid member sheet structure: ${sheet.getName()}`);
   }
   // 表ヘッダーを取得
-  const header = values[HEADER_ROW_INDEX];
+  const header: String[] = values[HEADER_ROW_INDEX];
   // ヘッダーを除いた2行目以降のデータとして扱う
-  const data = values.slice(FIRST_DATA_ROW_INDEX);
+  const data: (string | Boolean)[][] = values.slice(FIRST_DATA_ROW_INDEX);
 
   // データが取得できない場合、エラーを出力
   if (data.length === 0) {
     throw new Error(`No member data found in sheet: ${sheet.getName()}`);
   }
 
-  const members = data.map((row) => {
-    const member: Member = row.reduce((accumulator, currentValue, index) => {
-      accumulator[header[index]] = currentValue;
-      return accumulator;
-    }, {} as Member);
-    return member;
+  const members: Member[] = data.map((row) => {
+    const member = Object.fromEntries(
+      header.map((key, index) => [key, row[index]]),
+    );
+
+    return {
+      name: String(member.name ?? ""),
+      email: String(member.email ?? ""),
+      memberID: String(member.memberID ?? ""),
+      participation: Boolean(member.participation),
+      team: null,
+      isFacilitator: null,
+    } as Member;
   });
 
   return members;
 }
+
+/**
+ * スケジュールとメンバー情報において、ファシリテーターが未設定の場合およびメンバー全てのチームが未設定の場合にエラーを出力します。
+ * @param discussionMembers - 座談会メンバー情報
+ * @returns errors - エラー情報配列
+ */
+export const validateScheduleData = (discussionMembers: Member[]) => {
+  const errors: string[] = [];
+  const participants = discussionMembers.filter(
+    (member) => member.participation,
+  );
+
+  if (participants.length === 0) {
+    errors.push("NO_PARTICIPANTS");
+    return errors;
+  }
+
+  const facilitatorsUnassigned = participants.every(
+    (member) => !member.isFacilitator,
+  );
+
+  if (facilitatorsUnassigned) {
+    errors.push("FACILITATOR_UNASSIGNED");
+  }
+
+  const teamsUnassigned = participants.every((member) => !member.team);
+
+  if (teamsUnassigned) {
+    errors.push("TEAMS_UNASSIGNED");
+  }
+
+  return errors;
+};
