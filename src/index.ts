@@ -12,7 +12,8 @@ export function main() {
   const scriptProperties: GoogleAppsScript.Properties.Properties =
     PropertiesService.getScriptProperties();
 
-  const slackOAuthToken = scriptProperties.getProperty("SLACK_OAUTH_TOKEN");
+  const slackOAuthToken: string | null =
+    scriptProperties.getProperty("SLACK_OAUTH_TOKEN");
 
   if (!slackOAuthToken) {
     Logger.log(
@@ -25,7 +26,7 @@ export function main() {
   const today: Dayjs = dayjs();
 
   // 1週間後に座談会があるか判定するため、1週間後の日付を保持
-  const nextWeek: Dayjs = today.add(0, "day");
+  const nextWeek: Dayjs = today.add(7, "day");
 
   // セクションごとに座談会がGAS実行日の1週間後に予定されているかを判定し、予定されている場合は各セクションチャンネルにリマインドを送る
   for (const section of Object.values(sectionList)) {
@@ -47,7 +48,7 @@ export function main() {
     }
 
     // スプレッドシートからスケジュール情報とメンバー情報を取得
-    const scheduleInfo = getSheetData(
+    const scheduleInfo: Member[] | null = getSheetData(
       nextWeek,
       scheduleSheetName,
       memberSheetName,
@@ -81,7 +82,7 @@ export function main() {
       if (!members || members.length === 0) continue;
 
       // リマインド本文を作成
-      const messageBody = createMessageBody(members, team, nextWeek);
+      const messageBody: string = createMessageBody(members, team, nextWeek);
 
       // Slackへリマインドを通知
       sendToSlack(webhookUrl, slackOAuthToken, channelName, messageBody);
