@@ -87,9 +87,9 @@ function getScheduleFromSheet(
     .filter((member) => member.participation)
     .map((member) => {
       const team = matchedRow[header.indexOf(member.name)] as string;
-      const isFacili =
+      const isFacilitator =
         matchedRow[header.indexOf(`${team}ファシリ`)] === member.name;
-      return { ...member, team, isFacili };
+      return { ...member, team, isFacilitator };
     });
 
   const errors = validateScheduleData(scheduleInfo);
