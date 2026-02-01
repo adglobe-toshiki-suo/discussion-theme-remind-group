@@ -1,0 +1,22 @@
+{
+  "name": "discussion-theme-remind-group",
+  "build": { "dockerfile": "./Dockerfile" },
+  "postCreateCommand": "npm install -g ts-node",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "esbenp.prettier-vscode",
+        "dbaeumer.vscode-eslint",
+        "github.vscode-github-actions"
+      ],
+      "settings": {
+        "editor.tabSize": 2,
+        "editor.insertSpaces": true,
+        "editor.useTabStops": false,
+        "editor.defaultFormatter": "esbenp.prettier-vscode",
+        "editor.formatOnSave": true
+      }
+    }
+  },
+  "remoteUser": "root"
+}
